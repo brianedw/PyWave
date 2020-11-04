@@ -5,7 +5,7 @@
 
 # Stock Imports
 
-# In[32]:
+# In[ ]:
 
 
 import math
@@ -30,20 +30,20 @@ from IPython.display import HTML
 
 # Custom Imports
 
-# In[33]:
+# In[ ]:
 
 
 from colorize import *
 from SparseSolverWithLibrary import LGMRES_with_Library
 
 
-# In[34]:
+# In[ ]:
 
 
 LGMRESLib = LGMRES_with_Library.getInstance()
 
 
-# In[35]:
+# In[ ]:
 
 
 pi = np.pi
@@ -60,7 +60,7 @@ j = 1j
 
 # ### Physics
 
-# In[480]:
+# In[ ]:
 
 
 NORMAL_CODE = 0
@@ -68,7 +68,7 @@ ZERO_CODE = 1
 DERZERO_CODE = 2
 
 
-# In[481]:
+# In[ ]:
 
 
 def pTypeToCode(str):
@@ -80,14 +80,14 @@ def pTypeToCode(str):
         return DERZERO_CODE
 
 
-# In[482]:
+# In[ ]:
 
 
 class EMSim:
     pass
 
 
-# In[767]:
+# In[ ]:
 
 
 def __init__(self, shape=(10, 10), WL0=20, margin='auto'):
@@ -191,7 +191,7 @@ def __init__(self, shape=(10, 10), WL0=20, margin='auto'):
 setattr(EMSim, "__init__", __init__)
 
 
-# In[484]:
+# In[ ]:
 
 
 def BuildSimBounds(self, c=.5, a=2):
@@ -228,7 +228,7 @@ def BuildSimBounds(self, c=.5, a=2):
 setattr(EMSim, "BuildSimBounds", BuildSimBounds)
 
 
-# In[485]:
+# In[ ]:
 
 
 def solve(self):
@@ -240,7 +240,7 @@ def solve(self):
 setattr(EMSim, "solve", solve)
 
 
-# In[486]:
+# In[ ]:
 
 
 def solveFromLast(self):
@@ -255,7 +255,7 @@ def solveFromLast(self):
 setattr(EMSim, "solveFromLast", solveFromLast)
 
 
-# In[487]:
+# In[ ]:
 
 
 def solveFromLibrary(self):
@@ -279,7 +279,7 @@ setattr(EMSim, "solveFromLibrary", solveFromLibrary)
 # 
 # In this work, it is less important how the matrices are stored and more important that the user interface is not confusing.  Therefore, we adopt the convention that A[0,0] refers to the origin is the in the lower-left corner and A[3,0] would the four values to the right of the origin. 
 
-# In[488]:
+# In[ ]:
 
 
 @njit
@@ -312,7 +312,7 @@ def indFull(xy, shapeFull):
     return inds
 
 
-# In[489]:
+# In[ ]:
 
 
 def ind(self, xy):
@@ -329,7 +329,7 @@ def ind(self, xy):
 setattr(EMSim, "ind", ind)
 
 
-# In[490]:
+# In[ ]:
 
 
 def indRect(self, xyRange):
@@ -349,7 +349,7 @@ setattr(EMSim, "indRect", indRect)
 
 # ### Optimized Equation Generator
 
-# In[491]:
+# In[ ]:
 
 
 def buildSparsePhysicsEqs(self):
@@ -375,7 +375,7 @@ def buildSparsePhysicsEqs(self):
 setattr(EMSim, "buildSparsePhysicsEqs", buildSparsePhysicsEqs)
 
 
-# In[465]:
+# In[ ]:
 
 
 @njit
@@ -582,7 +582,7 @@ setattr(EMSim, 'setPTypeRect', setPTypeRect)
 # In[ ]:
 
 
-def setPTypeLineX(self, xRange, y0, width, bcType):
+def setPTypeLineX(self, xRange, y0, width, pType):
     yRange = (round(y0-width/2), round(y0+width/2))
     val = pTypeToCode(pType)
     ids = self.indRect((xRange, yRange))
@@ -593,7 +593,7 @@ setattr(EMSim, 'setPTypeLineX', setPTypeLineX)
 # In[ ]:
 
 
-def setPTypeLineY(self, yRange, x0, width, bcType):
+def setPTypeLineY(self, yRange, x0, width, pType):
     xRange = (round(x0-width/2), round(x0+width/2))
     val = pTypeToCode(pType)
     ids = self.indRect((xRange, yRange))
@@ -603,7 +603,7 @@ setattr(EMSim, 'setPTypeLineY', setPTypeLineY)
 
 # ### Visualization
 
-# In[750]:
+# In[ ]:
 
 
 def add_margin(pil_img, m, color):
@@ -615,7 +615,7 @@ def add_margin(pil_img, m, color):
     return result
 
 
-# In[762]:
+# In[ ]:
 
 
 def visualizeSim(self, zoom=3, maxNRange="auto", maxSourceRange="auto", domain="interest"):
@@ -686,7 +686,7 @@ setattr(EMSim, 'visualizeSim', visualizeSim)
 # setattr(EMSim, 'visualizeSources', visualizeSources)
 
 
-# In[756]:
+# In[ ]:
 
 
 def visualizeField(self, zoom=3, maxRange="auto", domain="interest", func="real"):
@@ -738,7 +738,7 @@ def visualizeAll(self, zoom=3, domain="interest", func="real"):
 setattr(EMSim, 'visualizeAll', visualizeAll)
 
 
-# In[732]:
+# In[ ]:
 
 
 def animateFields(self, maxRange="auto", domain="interest"):
