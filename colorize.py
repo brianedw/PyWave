@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[8]:
+# In[ ]:
 
 
 import numpy as np
 from matplotlib.colors import hsv_to_rgb
 
 
-# In[9]:
+# In[ ]:
 
 
 def colorizeArray(array2D, min_max=(-1, 1), colors=[(255,0,0), (255,255,255), (0,0,255)], 
@@ -28,7 +28,7 @@ def colorizeArray(array2D, min_max=(-1, 1), colors=[(255,0,0), (255,255,255), (0
     return outColor
 
 
-# In[10]:
+# In[ ]:
 
 
 inArray = np.array([[-2, -0.1, 0.1, 1, 2],[-2, -0.1, 0.1, 1, 2]])
@@ -37,18 +37,18 @@ colorizeArray(inArray, min_max=(0,1),
               preFunc = lambda x: np.abs(x))
 
 
-# In[11]:
+# In[ ]:
 
 
 dims = (4,5)
 inArray = np.random.rand(*dims) + 1j*np.random.rand(*dims)
 
 
-# In[15]:
+# In[ ]:
 
 
 def colorizeComplexArray(inArray, maxRad=1, centerColor='white'):
-    angleNP = np.angle(inArray)/(2*np.pi) # on range [-.5, 0.5]
+    angleNP = np.angle(inArray+0.001j)/(2*np.pi) # on range [-.5, 0.5]
     offset = np.sign(angleNP)/(-2) + 0.5
     hue = angleNP + offset
     mag = np.clip(np.abs(inArray)/maxRad, 0, 1)
@@ -64,7 +64,7 @@ def colorizeComplexArray(inArray, maxRad=1, centerColor='white'):
     return rgbOut
 
 
-# In[16]:
+# In[ ]:
 
 
 colorizeComplexArray(inArray, maxRad=0.01, centerColor='white')

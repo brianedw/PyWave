@@ -28,6 +28,28 @@ import matplotlib.animation
 from IPython.display import HTML
 
 
+# In[ ]:
+
+
+import bokeh
+from bokeh.io import output_notebook
+from bokeh.plotting import figure, show
+from bokeh.io import export_svgs
+from bokeh.models import Arrow, NormalHead, OpenHead, VeeHead
+from bokeh.layouts import gridplot, row
+
+print("Bokeh Version:", bokeh.__version__)
+
+output_notebook()
+bokeh.io.curdoc().theme = 'dark_minimal'
+
+
+# In[ ]:
+
+
+from shapely.geometry import LineString, MultiPolygon, Polygon, MultiLineString, MultiPoint, Point
+
+
 # Custom Imports
 
 # In[ ]:
@@ -90,7 +112,7 @@ class EMSim:
 # In[ ]:
 
 
-def __init__(self, shape=(10, 10), WL0=20, margin='auto'):
+def __init__(self, shape=(10, 10), WL0=20, boundsLRBT=('abs', 'abs', 'abs', 'abs'), pmlMargin='auto'):
     """ EMSim is a simple 2D Finite Difference Frequency Domain Simulator 
     (FDFD).
     
@@ -101,9 +123,14 @@ def __init__(self, shape=(10, 10), WL0=20, margin='auto'):
         shape (:tuple:`int`): The width (x) and height (y) in pixels of the 
             simulation sans any boundary that is added via `margin'.
         WL0 (real number): The length of a free space wavelength in pixels.
-        margin (real number or 'auto'): How many pixels to surround the
+        pmlMargin (real number or 'auto'): How many pixels to surround the
             siumulation domain.  These pixels will be used to create an 
             absorbing boundary.  If 'auto' is used, `margin = 2*WL0`.
+        boundsLRBT: (left, right, bottom, top).  One of the following:
+            'abs' : Absorbing boundaray.
+            'per' : Periodic boundary
+            'zero': Zero field boundary
+            'derZero' : Zero derivative to the field.
 
     Attributes:
         shape (:tuple:`int`): The width and height of the simulation sans
@@ -152,43 +179,60 @@ def __init__(self, shape=(10, 10), WL0=20, margin='auto'):
     self.ZERO_CODE = 1
     self.DERZERO_CODE = 2
     
-    if margin=='auto':
-        self.margin = round(2*WL0)
+    if pmlMargin=='auto':
+        self.pmlMargin = round(2*WL0)
     else:
-        self.margin = margin
+        self.pmlMargin = pmlMargin
+    pmlMargin = self.pmlMargin
+    self.boundsLRBT = boundsLRBT
+    self.LB, self.RB, self.BB, self.TB = self.boundsLRBT
+    self.lM, self.rM, self.bM, self.tM = [BoundaryCodeToPadding(code, pmlMargin) for code in self.boundsLRBT]
     self.shape = shape
     self.WL0 = WL0  # Size of wl0 in 'pixels'
-    # self.margin = int(math.ceil(self.WL0))  # Size of PML in 'pixels'
-    self.shapeFull = tuple(
-        x + 2 * self.margin for x in self.shape)  # shape with PML
-    # self.k0 = 2 * np.pi / WL0  # k0, free-space avenumber.
+
+    lM, rM, bM, tM = self.lM, self.rM, self.bM, self.tM
+    xSize, ySize = self.shape
     
-    m = self.margin
+    self.shapeFull = (lM + xSize + rM, bM + ySize + tM)
     shapeFull = self.shapeFull
 
     # The three vars below are all views of the same data block
     self.fieldFull = np.zeros(shapeFull, np.complex)
-    self.field = self.fieldFull[m:-m, m:-m]
+    self.field = self.fieldFull[lM:(lM+xSize), bM:(bM+ySize)]
     self.fieldFull1D = self.fieldFull.ravel()
 
     # The three vars below are all views of the same data block
     self.sourceFull = np.zeros(shapeFull, np.complex)
-    self.source = self.sourceFull[m:-m, m:-m]
+    self.source = self.sourceFull[lM:(lM+xSize), bM:(bM+ySize)]
     self.sourceFull1D = self.sourceFull.ravel()
     
     # The three vars below are all views of the same data block.
     # Normal: 0, field[x,y] == 0 : 1, d field[x,y]/du == 0 : 2
     self.pTypeFull = np.full(shapeFull, 0, np.uint8)  
-    self.pType = self.pTypeFull[m:-m, m:-m]
+    self.pType = self.pTypeFull[lM:(lM+xSize), bM:(bM+ySize)]
     self.pTypeFull1D = self.pTypeFull.ravel()
 
     # The three vars below are all views of the same data block
     self.nIndexFull = np.full(shapeFull, 1., np.complex)  
-    self.nIndex = self.nIndexFull[m:-m, m:-m]  
+    self.nIndex = self.nIndexFull[lM:(lM+xSize), bM:(bM+ySize)]
     self.nIndexFull1D = self.nIndexFull.ravel()
 
     
 setattr(EMSim, "__init__", __init__)
+
+
+# In[ ]:
+
+
+def BoundaryCodeToPadding(code, pmlMargin):
+    if code == 'abs':
+        return pmlMargin
+    elif code == 'per':
+        return 0
+    elif code == 'zero':
+        return 1
+    elif code == 'derZero':
+        return 1
 
 
 # In[ ]:
@@ -209,21 +253,47 @@ def BuildSimBounds(self, c=.5, a=2):
     `s(v) = c * v**a` where `v` is the relative distance into the margin.  The
     value `c` is maximum value to be added and `a` gives the growth rate.
     """
-    m = self.margin
+    pmlM = self.pmlMargin
+    lM, rM, bM, tM = [BoundaryCodeToPadding(code, pmlM) for code in self.boundsLRBT]
     WL0 = self.WL0
     (xMax, yMax) = self.shapeFull
-    # Pad nIndex
-    padded = np.pad(self.nIndex, ((m,m), (m,m)), 'edge')
+    # Pad nIndex.  Note that we first create the array, then copy the data into
+    # the array to preserve the shared data between nIndex and nIndexFull.  Using
+    # the 'edge' keyword propagates waveguides and similar into the PML region to
+    # prevent weird reflections.
+    padded = np.pad(self.nIndex, ((lM,rM), (bM,tM)), 'edge')
     self.nIndexFull[:] = padded[:]
     def s(x):
         return((c) * (x)**a)
-    sigmaX = [s((1/m)*max(m-i, 0, i-(xMax-m)+1)) for i in range(0,xMax)]
-    sigmaY = [s((1/m)*max(m-i, 0, i-(yMax-m)+1)) for i in range(0,yMax)]
+    # We create a prototype 1D line of additional losses for both x and y.
+    sigmaX = [s((1/pmlM)*max(lM-i, 0, i-(xMax-rM)+1)) for i in range(0,xMax)]
+    sigmaY = [s((1/pmlM)*max(bM-i, 0, i-(yMax-tM)+1)) for i in range(0,yMax)]
+    # We then transform this into a 3D array using meshgrid which is of 
+    # dimension (nx, ny, 2).  This is rendered into a 2D array using np.max.
     edgeLoss = np.apply_along_axis(np.max, 0, np.meshgrid(sigmaY, sigmaX))
+    # The losses are added to the index values.
     self.nIndexFull[:] += 1j*edgeLoss
-    # Pad pType
-    padded = np.pad(self.pType, ((m,m), (m,m)), 'edge')
+    # Pad pType.  Again, the data is created then copied into preserve the shared
+    # data between pType and pTypeFull
+    padded = np.pad(self.pType, ((lM,rM), (bM,tM)), 'edge')
     self.pTypeFull[:] = padded[:]
+    LB, RB, BB, TB = self.boundsLRBT
+    if LB=='zero':
+        self.pTypeFull[0,:] = self.ZERO_CODE
+    elif LB=='derZero':
+        self.pTypeFull[0,:] = self.DERZERO_CODE
+    if RB=='zero':
+        self.pTypeFull[-1,:] = self.ZERO_CODE
+    elif RB=='derZero':
+        self.pTypeFull[-1,:] = self.DERZERO_CODE
+    if BB=='zero':
+        self.pTypeFull[:,0] = self.ZERO_CODE
+    elif BB=='derZero':
+        self.pTypeFull[:,0] = self.DERZERO_CODE
+    if TB=='zero':
+        self.pTypeFull[:,-1] = self.ZERO_CODE
+    elif TB=='derZero':
+        self.pTypeFull[:,-1] = self.DERZERO_CODE
 
 setattr(EMSim, "BuildSimBounds", BuildSimBounds)
 
@@ -325,7 +395,7 @@ def ind(self, xy):
     xy = (1, [10, 12, 14])
     """
     x,y = xy
-    return indFull((x+self.margin, y+self.margin), self.shapeFull)
+    return indFull((x+self.lM, y+self.bM), self.shapeFull)
 setattr(EMSim, "ind", ind)
 
 
@@ -476,21 +546,21 @@ setattr(EMSim, 'setSourceRect', setSourceRect)
 # In[ ]:
 
 
-def setSourceLineX(self, xRange, y0, width, val):
-    yRange = (round(y0-width/2), round(y0+width/2))
-    inds = self.indRect((xRange, yRange))
-    self.sourceFull1D[inds] = val
-setattr(EMSim, 'setSourceLineX', setSourceLineX)
+# def setSourceLineX(self, xRange, y0, width, val):
+#     yRange = (round(y0-width/2), round(y0+width/2))
+#     inds = self.indRect((xRange, yRange))
+#     self.sourceFull1D[inds] = val
+# setattr(EMSim, 'setSourceLineX', setSourceLineX)
 
 
 # In[ ]:
 
 
-def setSourceLineY(self, yRange, x0, width, val):
-    xRange = (round(y0-width/2), round(y0+width/2))
-    inds = self.indRect((xRange, yRange))
-    self.sourceFull1D[inds] = val
-setattr(EMSim, 'setSourceLineY', setSourceLineY)
+# def setSourceLineY(self, yRange, x0, width, val):
+#     xRange = (round(y0-width/2), round(y0+width/2))
+#     inds = self.indRect((xRange, yRange))
+#     self.sourceFull1D[inds] = val
+# setattr(EMSim, 'setSourceLineY', setSourceLineY)
 
 
 # In[ ]:
@@ -505,12 +575,18 @@ setattr(EMSim, 'zeroSources', zeroSources)
 # In[ ]:
 
 
-# def applyExcitation(self, excitation):
-#     (xs, ys, vals) = excitation
-#     self.sources[:] = 0
-#     for i in range(len(xs)):
-#         self.sources[ys[i], xs[i]] = vals[i]
-# setattr(EMSim, 'applyExcitation', applyExcitation)
+def applyExcitation(self, exc):
+    """
+    Given an excitation in the form {xs:xList, ys:yList, values:valueList}
+    it will apply the apply the excitation to the simulation.
+    exc1 = {xs:[1,2,3], ys:[10,10,10], values: [1, -1, 0.7+0.7j]}
+    sim.applyExcitation(exc1)
+    """
+    (xs, ys, vals) = excitation
+    self.sources[:] = 0
+    for i in range(len(xs)):
+        self.sources[ys[i], xs[i]] = vals[i]
+setattr(EMSim, 'applyExcitation', applyExcitation)
     
 
 
@@ -520,6 +596,18 @@ setattr(EMSim, 'zeroSources', zeroSources)
 
 
 def setNIndex(self, xy, n):
+    """
+    Sets the index of a pixel at location xy = (x, y).
+    Examples:
+    
+    sim.setNIndex( (3,10), 1.5+0.1*I)
+    
+    xs = [0,1,2,3]
+    ys = [4,5,6,7]
+    sim.setNIndex((xs,ys), 1.5+0.1*I)
+    
+    Note that 
+    """
     (xs, ys) = xy
     ids = self.ind((xs,ys))
     self.nIndexFull1D[ids] = n
@@ -530,6 +618,15 @@ setattr(EMSim, 'setNIndex', setNIndex)
 
 
 def setNIndexRect(self, xyRange, n):
+    """
+    xyRange = ((xMin, xMax), (yMin, yMax))
+    n is complex number.
+    For instance sim.setNIndexRect(((20,22), (30,32), "zero") will force 
+    the field to be zero at for the locations 
+    x in {20, 21, 22} AND y in {30, 31, 32}.  
+    
+    In other words, it includes the end points, unlike much of Python.
+    """
     inds = self.indRect(xyRange)
     self.nIndexFull1D[inds] = n
 setattr(EMSim, 'setNIndexRect', setNIndexRect)
@@ -538,21 +635,46 @@ setattr(EMSim, 'setNIndexRect', setNIndexRect)
 # In[ ]:
 
 
-def setNIndexLineX(self, xRange, y0, width, n):
-    yRange = (round(y0-width/2), round(y0+width/2))
-    inds = self.indRect((xRange, yRange))
-    self.nIndexFull1D[inds] = n
-setattr(EMSim, 'setNIndexLineX', setNIndexLineX)
+def setNIndexPolygon(self, mPoly, n):
+    """
+    mPoly: a Shapely Polygon or MultiPolygon
+    n is complex number.
+    
+    For instance sim.setNIndexRect(((20,22), (30,32), "zero") will force 
+    the field to be zero at for the locations 
+    x in {20, 21, 22} AND y in {30, 31, 32}.  
+    
+    In other words, it includes the end points, unlike much of Python.
+    """
+    if isinstance(mPoly, Polygon):
+        mPoly = MultiPolygon([mPoly])
+    (nx, ny) = self.shape
+    for x in range(nx):
+        for y in range(ny):
+            pt1 = Point(x,y)
+            if mPoly.intersects(pt1):
+                self.nIndex[x,y] = n    
+setattr(EMSim, 'setNIndexPolygon', setNIndexPolygon)
 
 
 # In[ ]:
 
 
-def setNIndexLineY(self, yRange, x0, width, n):
-    xRange = (round(y0-width/2), round(y0+width/2))
-    inds = self.indRect((xRange, yRange))
-    self.nIndexFull1D[inds] = n
-setattr(EMSim, 'setNIndexLineY', setNIndexLineY)
+# def setNIndexLineX(self, xRange, y0, width, n):
+#     yRange = (round(y0-width/2), round(y0+width/2))
+#     inds = self.indRect((xRange, yRange))
+#     self.nIndexFull1D[inds] = n
+# setattr(EMSim, 'setNIndexLineX', setNIndexLineX)
+
+
+# In[ ]:
+
+
+# def setNIndexLineY(self, yRange, x0, width, n):
+#     xRange = (round(y0-width/2), round(y0+width/2))
+#     inds = self.indRect((xRange, yRange))
+#     self.nIndexFull1D[inds] = n
+# setattr(EMSim, 'setNIndexLineY', setNIndexLineY)
 
 
 # #### Boundary Conditions
@@ -561,6 +683,12 @@ setattr(EMSim, 'setNIndexLineY', setNIndexLineY)
 
 
 def setPType(self, xy, pType):
+    """
+    xy = (x, y)
+    pType is of the set {"normal", "zero", "derZero"}
+    
+    For instance sim.setPType((24,20), "zero") will force the field to be zero at (x,y) = (24,20).
+    """
     (xs, ys) = xy
     val = pTypeToCode(pType)
     ids = self.ind((xs,ys))
@@ -572,6 +700,16 @@ setattr(EMSim, 'setPType', setPType)
 
 
 def setPTypeRect(self, xyRange, pType):
+    """
+    xyRange = ((xMin, xMax), (yMin, yMax))
+    pType is of the set {"normal", "zero", "derZero"}
+    
+    For instance sim.setPTypeRect(((20,22), (30,32), "zero") will force 
+    the field to be zero at for the locations 
+    x in {20, 21, 22} AND y in {30, 31, 32}.  
+    
+    In other words, it includes the end points, unlike much of Python.
+    """
     ((xMin, xMax), (yMin, yMax)) = xyRange
     val = pTypeToCode(pType)
     ids = self.indRect(xyRange)
@@ -582,23 +720,54 @@ setattr(EMSim, 'setPTypeRect', setPTypeRect)
 # In[ ]:
 
 
-def setPTypeLineX(self, xRange, y0, width, pType):
-    yRange = (round(y0-width/2), round(y0+width/2))
-    val = pTypeToCode(pType)
-    ids = self.indRect((xRange, yRange))
-    self.pTypeFull1D[ids] = val
-setattr(EMSim, 'setPTypeLineX', setPTypeLineX)
+def setPTypePolygon(self, mPoly, pType):
+    """
+    mPoly: a Shapely Polygon or MultiPolygon
+    n is complex number.
+    
+    For instance sim.setNIndexRect(((20,22), (30,32), "zero") will force 
+    the field to be zero at for the locations 
+    x in {20, 21, 22} AND y in {30, 31, 32}.  
+    
+    In other words, it includes the end points, unlike much of Python.
+    """
+    if isinstance(mPoly, Polygon):
+        mPoly = MultiPolygon([mPoly])
+    (nx, ny) = self.shape
+    if isinstance(pType, str):
+        val = pTypeToCode(pType)
+    elif isinstance(pType, int):
+        val = pType
+    else:
+        print("I don't know what to do with this pType.")
+    for x in range(nx):
+        for y in range(ny):
+            pt1 = Point(x,y)
+            if mPoly.intersects(pt1):
+                self.pType[x,y] = val    
+setattr(EMSim, 'setPTypePolygon', setPTypePolygon)
 
 
 # In[ ]:
 
 
-def setPTypeLineY(self, yRange, x0, width, pType):
-    xRange = (round(x0-width/2), round(x0+width/2))
-    val = pTypeToCode(pType)
-    ids = self.indRect((xRange, yRange))
-    self.pTypeFull1D[ids] = val
-setattr(EMSim, 'setPTypeLineY', setPTypeLineY)
+# def setPTypeLineX(self, xRange, y0, width, pType):
+#     yRange = (round(y0-width/2), round(y0+width/2))
+#     val = pTypeToCode(pType)
+#     ids = self.indRect((xRange, yRange))
+#     self.pTypeFull1D[ids] = val
+# setattr(EMSim, 'setPTypeLineX', setPTypeLineX)
+
+
+# In[ ]:
+
+
+# def setPTypeLineY(self, yRange, x0, width, pType):
+#     xRange = (round(x0-width/2), round(x0+width/2))
+#     val = pTypeToCode(pType)
+#     ids = self.indRect((xRange, yRange))
+#     self.pTypeFull1D[ids] = val
+# setattr(EMSim, 'setPTypeLineY', setPTypeLineY)
 
 
 # ### Visualization
@@ -639,6 +808,8 @@ def visualizeSim(self, zoom=3, maxNRange="auto", maxSourceRange="auto", domain="
 
     if maxSourceRange=="auto":
         maxSR = np.max(np.abs(source))
+        if maxSR == 0:
+            maxSR = 1
     else:
         maxSR = maxSourceRange
 
@@ -692,6 +863,8 @@ setattr(EMSim, 'visualizeSim', visualizeSim)
 def visualizeField(self, zoom=3, maxRange="auto", domain="interest", func="real"):
     if maxRange=="auto":
         maxR = np.max(np.abs(self.field))
+        if maxR == 0:
+            maxR = 1
     else:
         maxR = np.abs(maxRange)
     if domain=="interest":
@@ -741,6 +914,127 @@ setattr(EMSim, 'visualizeAll', visualizeAll)
 # In[ ]:
 
 
+def visualizeFieldBokeh(self, imageWidth=800, maxRange="auto", func="real", purpose="display"):
+    if maxRange=="auto":
+        maxR = np.max(np.abs(self.field))
+        if maxR == 0:
+            maxR = 1
+    else:
+        maxR = np.abs(maxRange)
+
+    
+    field = self.fieldFull
+    fieldT = np.swapaxes(field, 0, 1)[::-1]
+
+    if func=="real":
+        pixArray = colorizeComplexArray(
+            fieldT+0.00001j, maxRad=maxR, centerColor='black')
+    elif func=="abs":
+        pixArray = colorizeArray(fieldT, 
+                                 min_max=(0, maxR),
+                                 colors=([0, 0, 0], [255, 0, 0],
+                                         [255, 255, 255]),
+                                 preFunc=lambda x: np.abs(x))
+    else:
+        raise Exception("visualizeField: 'func' should be either 'real' or 'abs'")
+        
+    alphaArray = np.full_like(pixArray[:,:,0], fill_value=255)
+    imageDataWithAlpha = np.concatenate([pixArray, np.atleast_3d(alphaArray)], axis=2)[::-1]
+    
+    dw, dh = self.shape
+    dwF, dhF = self.shapeFull
+    pw = int(round(imageWidth + 57))
+    ph = int(round(pw*dh/dw + 31))
+    TOOLTIPS = [("(x,y)", "($x{1.}, $y{1.})")]
+    p = figure(x_range=(-0.5, dw-0.5), y_range=(-.5, dh-0.5), plot_width=pw, plot_height=ph, tools="pan,wheel_zoom,reset,save", tooltips=TOOLTIPS)
+    p.image_rgba(image=[imageDataWithAlpha], x=-self.lM-0.5, y=-self.bM-0.5, dw=dwF, dh=dhF)
+    p.line(x=[0-0.5,dw-0.5,dw-0.5,-0.5,-0.5], y=[-0.5,-0.5,dh-0.5,dh-0.5,-0.5], color="red", line_width=1)
+    if purpose == 'display':
+        show(p)
+    else:
+        return p
+setattr(EMSim, 'visualizeFieldBokeh', visualizeFieldBokeh)
+
+
+# In[ ]:
+
+
+def visualizeSimBokeh(self, imageWidth=800, maxRangeN="auto", maxRangeSource="auto", purpose="display"):
+    # PEC/PMC: 1,  Normal: 0
+    nIndex = np.swapaxes(self.nIndexFull, 0, 1)[::-1]
+    source = np.swapaxes(self.sourceFull, 0, 1)[::-1]
+    pType = np.swapaxes(self.pTypeFull, 0, 1)[::-1]
+        
+    PECIndex = (pType == ZERO_CODE).astype(np.uint8)
+    PMCIndex = (pType == DERZERO_CODE).astype(np.uint8)
+
+    if maxRangeN=="auto":
+        maxNR = np.max(np.abs(nIndex)) - 0.
+    else:
+        maxNR = maxRangeN - 0.
+
+    if maxRangeSource=="auto":
+        maxSR = np.max(np.abs(source))
+        if maxSR == 0:
+            maxSR = 1
+    else:
+        maxSR = maxRangeSource
+
+    chi = (nIndex - (1 + 1j*10**-6))
+    rotScal = np.exp(1j*2*np.pi*(3/6))
+    nColor3D = colorizeComplexArray(chi*rotScal, maxRad=maxNR, centerColor='black')
+
+    PECColor3D = np.array([[(  0,  0,  255)]], dtype=np.uint8)
+    PMCColor3D = np.array([[(255,  0,  0)]], dtype=np.uint8)
+
+    choiceArray = (np.zeros_like(nIndex,dtype=np.uint8) + 
+                   PECIndex + 2*PMCIndex)
+    
+    sourceMask = (source != 0).astype(np.uint8)
+    sourceColor3D = colorizeComplexArray(source, maxRad=maxSR, centerColor='black')
+    choiceArray = choiceArray*(1-sourceMask) + 3*sourceMask
+
+    nMask = np.atleast_3d(choiceArray == 0)
+    PECMask = np.atleast_3d(choiceArray == 1)
+    PMCMask = np.atleast_3d(choiceArray == 2)
+    sourceMask = np.atleast_3d(choiceArray == 3)
+    pixArray = nMask*nColor3D + PECMask*PECColor3D + PMCMask*PMCColor3D + sourceMask*sourceColor3D
+    
+    alphaArray = np.full_like(pixArray[:,:,0], fill_value=255)
+    imageDataWithAlpha = np.concatenate([pixArray, np.atleast_3d(alphaArray)], axis=2)[::-1]
+    
+    dw, dh = self.shape
+    dwF, dhF = self.shapeFull
+    pw = int(round(imageWidth + 57))
+    ph = int(round(pw*dh/dw - 25))
+    TOOLTIPS = [("(x,y)", "($x{1.}, $y{1.})")]
+    p = figure(x_range=(-0.5, dw-0.5), y_range=(-.5, dh-0.5), plot_width=pw, plot_height=ph, tools="pan,wheel_zoom,reset,save", tooltips=TOOLTIPS)
+    p.image_rgba(image=[imageDataWithAlpha], x=-self.lM-0.5, y=-self.bM-0.5, dw=dwF, dh=dhF)
+    p.line(x=[0-0.5,dw-0.5,dw-0.5,-0.5,-0.5], y=[-0.5,-0.5,dh-0.5,dh-0.5,-0.5], color="gray", line_width=1, line_dash='dotted')
+    if purpose == 'display':
+        show(p)
+    else:
+        return p
+setattr(EMSim, 'visualizeSimBokeh', visualizeSimBokeh)
+
+
+# In[ ]:
+
+
+def visualizeAllBokeh(self, func="real", maxRangeField='auto', maxRangeSource='auto', maxRangeN='auto'):
+    p1 = self.visualizeSimBokeh(purpose='value', maxRangeSource=maxRangeSource, maxRangeN=maxRangeN)
+    p2 = self.visualizeFieldBokeh(func=func, purpose='value', maxRange=maxRangeField)
+    p2.x_range = p1.x_range
+    p2.y_range = p1.y_range
+    dw, dh = self.shape
+    pAll = gridplot([[p1,p2]], plot_width=600 + 57, plot_height=int((dh/dw)*600+57))
+    show(pAll)
+setattr(EMSim, 'visualizeAllBokeh', visualizeAllBokeh)
+
+
+# In[ ]:
+
+
 def animateFields(self, maxRange="auto", domain="interest"):
     if domain=="interest":
         fields = self.field
@@ -750,7 +1044,7 @@ def animateFields(self, maxRange="auto", domain="interest"):
         maxX, maxY = self.shapeFull
     
     fig = plt.figure()
-    ax = plt.axes(xlim=(0-0.5, maxX-0.5), ylim=(0-.5, maxY-0.5))
+    ax = plt.axes(xlim=(0-0.5, maxX-0.5), ylim=(0-0.5, maxY-0.5))
     ax.axis('off')
 
     if maxRange=="auto":
@@ -763,7 +1057,7 @@ def animateFields(self, maxRange="auto", domain="interest"):
     im = plt.imshow(pixArray,interpolation='none',)
     # initialization function: plot the background of each frame
     def init():
-        pixArray = colorizeComplexArray(aC, maxRad=maxR, centerColor='black')
+        pixArray = colorizeComplexArray(np.real(aC)+0.001j, maxRad=maxR, centerColor='black')
         
         im.set_data(pixArray)
         return im
@@ -771,7 +1065,7 @@ def animateFields(self, maxRange="auto", domain="interest"):
     # animation function.  This is called sequentially
     def animate(i):
         phi = 2*pi*i/20
-        pixArray = colorizeComplexArray(aC*np.exp(-1j*phi), maxRad=maxR, centerColor='black')
+        pixArray = colorizeComplexArray(np.real(np.exp(-1j*phi)*aC)+0.001j, maxRad=maxR, centerColor='black')
         im.set_data(pixArray)
         return im
 

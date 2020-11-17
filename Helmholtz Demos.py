@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[ ]:
 
 
 get_ipython().run_line_magic('run', '"./Helmholtz.ipynb"')
 
 
-# In[2]:
+# In[ ]:
 
 
 print("hello!")
@@ -19,7 +19,7 @@ print("hello!")
 
 # The simulation is created with the line below.  The simulation will be comprised of a 100 wide by 75 tall domain.  The freespace wavelength is 20.  Note that Python is based on zero-indexing so valid values of $x$ are [0,99].
 
-# In[3]:
+# In[ ]:
 
 
 sim = EMSim(shape=(100,90), WL0=20)
@@ -27,13 +27,13 @@ sim = EMSim(shape=(100,90), WL0=20)
 
 # The simulation is altered by changing the material refractive index point by point.  The index can be a complex number with negative imaginary parts indicating loss.
 
-# In[4]:
+# In[ ]:
 
 
 sim.setNIndexLineX(n=1.5, y0=45, xRange=(20,99), width=11)
 
 
-# In[8]:
+# In[ ]:
 
 
 sim.setPTypeRect(pType="zero", xyRange=((20,30),(55,70)))
@@ -41,7 +41,7 @@ sim.setPTypeRect(pType="zero", xyRange=((20,30),(20,35)))
 sim.setPTypeRect(pType="derZero", xyRange=((10,15),(20,70)))
 
 
-# In[9]:
+# In[ ]:
 
 
 sim.setPTypeRect(pType="zero", xyRange=((90,95),(35,40)))
@@ -49,7 +49,7 @@ sim.setPTypeRect(pType="zero", xyRange=((90,95),(35,40)))
 
 # Additionally, sources can be created similarly.  Note that the source can be complex valued, indicating phase.
 
-# In[10]:
+# In[ ]:
 
 
 sim.setSource(val=1j, xy=(18,45))
@@ -57,7 +57,7 @@ sim.setSource(val=1j, xy=(18,45))
 
 # The line below prepares the boundary of the simulation.  More on that later.
 
-# In[11]:
+# In[ ]:
 
 
 sim.BuildSimBounds()
@@ -70,7 +70,7 @@ sim.BuildSimBounds()
 #   * Cyan Intensity: (1 < nIndex < maxNRange)
 #   * Any Color: Source with phase
 
-# In[12]:
+# In[ ]:
 
 
 sim.visualizeSim(zoom=4, maxNRange=2, maxSourceRange=1.)
@@ -78,25 +78,25 @@ sim.visualizeSim(zoom=4, maxNRange=2, maxSourceRange=1.)
 
 # From here the equations of the system are built and solved.
 
-# In[13]:
+# In[ ]:
 
 
 sim.buildSparsePhysicsEqs();
 
 
-# In[14]:
+# In[ ]:
 
 
 sim.solve()
 
 
-# In[15]:
+# In[ ]:
 
 
 sim.visualizeField(zoom=4, func="abs", maxRange=1.0)
 
 
-# In[16]:
+# In[ ]:
 
 
 sim.animateFields(maxRange=0.5)
@@ -104,7 +104,7 @@ sim.animateFields(maxRange=0.5)
 
 # # Lens
 
-# In[721]:
+# In[ ]:
 
 
 WL0 = 20
@@ -121,13 +121,13 @@ FL = round(((nLens - 1)*(1/R1 + 1/R2))**-1)
 print("FL:", FL)
 
 
-# In[722]:
+# In[ ]:
 
 
 sim = EMSim(shape=(xMax, yMax), WL0=WL0)
 
 
-# In[723]:
+# In[ ]:
 
 
 def isLens(xy):
@@ -144,7 +144,7 @@ def isLens(xy):
     return inLens
 
 
-# In[724]:
+# In[ ]:
 
 
 for x in range(xMax):
@@ -153,81 +153,81 @@ for x in range(xMax):
             sim.nIndex[x,y] = 2
 
 
-# In[725]:
+# In[ ]:
 
 
 sim.sourceFull[10+sim.margin, :] = 1j
 
 
-# In[726]:
+# In[ ]:
 
 
 sim.BuildSimBounds()
 
 
-# In[727]:
+# In[ ]:
 
 
 sim.visualizeSim(zoom=2, maxNRange=2, maxSourceRange=1., domain="full")
 
 
-# In[728]:
+# In[ ]:
 
 
 sim.buildSparsePhysicsEqs();
 
 
-# In[729]:
+# In[ ]:
 
 
 sim.solve()
 
 
-# In[730]:
+# In[ ]:
 
 
 sim.visualizeField(zoom=4, func="abs", maxRange="auto",domain="full")
 
 
-# In[733]:
+# In[ ]:
 
 
 sim.animateFields(maxRange="auto", domain="full")
 
 
-# In[734]:
+# In[ ]:
 
 
 sim.sourceFull[:,:] = 0
 
 
-# In[735]:
+# In[ ]:
 
 
 sim.source[xMid-2*FL, yMid + round(2*WL0)] = 1j
 sim.source[xMid-2*FL, yMid - round(2*WL0)] = -1j
 
 
-# In[763]:
+# In[ ]:
 
 
 sim.visualizeSim(domain="full")
 
 
-# In[737]:
+# In[ ]:
 
 
 sim.buildSparsePhysicsEqs()
 sim.solve()
 
 
-# In[757]:
+# In[ ]:
 
 
 sim.visualizeField(maxRange=0.1, domain="full")
 
 
-# In[740]:
+# In[ ]:
 
 
 sim.animateFields(maxRange=0.1, domain="full")
@@ -235,7 +235,7 @@ sim.animateFields(maxRange=0.1, domain="full")
 
 # # Waveguide Junction
 
-# In[850]:
+# In[ ]:
 
 
 WL0 = 20
@@ -246,19 +246,19 @@ xMid = round(xMax/2)
 yMid = round(yMax/2)
 
 
-# In[851]:
+# In[ ]:
 
 
 sim = EMSim(shape=(xMax,yMax), WL0=WL0)
 
 
-# In[852]:
+# In[ ]:
 
 
 sim.pType[:,:] = sim.ZERO_CODE
 
 
-# In[853]:
+# In[ ]:
 
 
 def isWG(xy):  
@@ -269,7 +269,7 @@ def isWG(xy):
     return inWG
 
 
-# In[854]:
+# In[ ]:
 
 
 for x in range(xMax):
@@ -278,42 +278,44 @@ for x in range(xMax):
             sim.pType[x,y] = sim.NORMAL_CODE
 
 
-# In[855]:
+# In[ ]:
 
 
 sim.source[0, round(yMid-0.2*WL0)] = 1j
 
 
-# In[856]:
+# In[ ]:
 
 
 sim.BuildSimBounds()
 
 
-# In[857]:
+# In[ ]:
 
 
 sim.visualizeSim()
 
 
-# In[858]:
+# In[ ]:
 
 
 sim.buildSparsePhysicsEqs()
 sim.solve()
 
 
-# In[859]:
+# In[ ]:
 
 
 sim.visualizeField(func="abs")
 
 
-# In[860]:
+# In[ ]:
 
 
 sim.animateFields()
 
+
+# # Curvy Waveguide
 
 # In[ ]:
 
