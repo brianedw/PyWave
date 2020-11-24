@@ -690,7 +690,12 @@ def setPType(self, xy, pType):
     For instance sim.setPType((24,20), "zero") will force the field to be zero at (x,y) = (24,20).
     """
     (xs, ys) = xy
-    val = pTypeToCode(pType)
+    if isinstance(pType, str):
+        val = pTypeToCode(pType)
+    elif isinstance(pType, int):
+        val = pType
+    else:
+        print("I don't know what to do with this pType.")
     ids = self.ind((xs,ys))
     self.pTypeFull1D[ids] = val
 setattr(EMSim, 'setPType', setPType)
@@ -711,7 +716,12 @@ def setPTypeRect(self, xyRange, pType):
     In other words, it includes the end points, unlike much of Python.
     """
     ((xMin, xMax), (yMin, yMax)) = xyRange
-    val = pTypeToCode(pType)
+    if isinstance(pType, str):
+        val = pTypeToCode(pType)
+    elif isinstance(pType, int):
+        val = pType
+    else:
+        print("I don't know what to do with this pType.")
     ids = self.indRect(xyRange)
     self.pTypeFull1D[ids] = val
 setattr(EMSim, 'setPTypeRect', setPTypeRect)
