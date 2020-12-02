@@ -575,14 +575,14 @@ setattr(EMSim, 'zeroSources', zeroSources)
 # In[ ]:
 
 
-def applyExcitation(self, exc):
+def applyExcitation(self, XsYsVs):
     """
-    Given an excitation in the form {xs:xList, ys:yList, values:valueList}
+    Given an excitation in the form {xList, yList, valueList}
     it will apply the apply the excitation to the simulation.
     exc1 = {xs:[1,2,3], ys:[10,10,10], values: [1, -1, 0.7+0.7j]}
     sim.applyExcitation(exc1)
     """
-    (xs, ys, vals) = excitation
+    (xs, ys, vals) = XsYsVs
     self.sources[:] = 0
     for i in range(len(xs)):
         self.sources[ys[i], xs[i]] = vals[i]
