@@ -589,9 +589,8 @@ def applyExcitation(self, XsYsVs, resetSources=False):
     if resetSources:
         self.sourceFull[:] = 0
     for i in range(len(xs)):
-        self.source[ys[i], xs[i]] += vals[i]
+        self.source[xs[i], ys[i]] += vals[i]
 setattr(EMSim, 'applyExcitation', applyExcitation)
-    
 
 
 # #### nIndex
