@@ -466,7 +466,7 @@ def computeChargeDistribution(self):
     Examines divergence of D as if the simulation is only eps=1.  Puts this result back into the `source` array for plotting.
     """
     self._sourceFull[:] = convolve2d(self._fieldFull, [[0,-1,0],[-1,4,-1],[0,-1,0]], boundary='wrap', mode='same')
-setattr(ESim, "backPropagateChargeDistribution", backPropagateChargeDistribution)
+setattr(ESim, "computeChargeDistribution", computeChargeDistribution)
 
 
 # ### Interface
