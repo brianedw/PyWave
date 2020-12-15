@@ -20,6 +20,7 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as sLA
 from scipy.sparse.linalg import dsolve, spsolve, bicg, bicgstab, cg
 from scipy.sparse.linalg import cgs, gmres, lgmres
+from scipy.signal import convolve2d
 from scipy.sparse import csc_matrix
 
 from PIL import Image
@@ -455,6 +456,17 @@ def makeEq(xy, shapeFull, epsFull1D, pTypeFull1D, sourceFull1D, fieldFull1D):
         bArray = (99,)
 
     return (rowArray, colArray, coeffArray, bArray)
+
+
+# In[ ]:
+
+
+def computeChargeDistribution(self):
+    """
+    Examines divergence of D as if the simulation is only eps=1.  Puts this result back into the `source` array for plotting.
+    """
+    self._sourceFull[:] = convolve2d(self._fieldFull, [[0,-1,0],[-1,4,-1],[0,-1,0]], boundary='wrap', mode='same')
+setattr(ESim, "backPropagateChargeDistribution", backPropagateChargeDistribution)
 
 
 # ### Interface
