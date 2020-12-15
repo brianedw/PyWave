@@ -516,8 +516,13 @@ def setSourcePolygon(self, mPoly, q):
     if isinstance(mPoly, Polygon):
         mPoly = MultiPolygon([mPoly])
     (nx, ny) = self._shape
-    for x in range(nx):
-        for y in range(ny):
+    lB, bB, rB, tB = mPoly.bounds
+    lB = max(math.floor(lB),0)
+    bB = max(math.floor(bB),0)
+    rB = min(math.ceil(rB)+1, nx)
+    tB = min(math.ceil(tB)+1, ny)
+    for x in range(lB, rB):
+        for y in range(bB, tB):
             pt1 = Point(x,y)
             if mPoly.intersects(pt1):
                 self.source[x,y] = q    
@@ -569,8 +574,13 @@ def setEpsPolygon(self, mPoly, eps):
     if isinstance(mPoly, Polygon):
         mPoly = MultiPolygon([mPoly])
     (nx, ny) = self._shape
-    for x in range(nx):
-        for y in range(ny):
+    lB, bB, rB, tB = mPoly.bounds
+    lB = max(math.floor(lB),0)
+    bB = max(math.floor(bB),0)
+    rB = min(math.ceil(rB)+1, nx)
+    tB = min(math.ceil(tB)+1, ny)
+    for x in range(lB, rB):
+        for y in range(bB, tB):
             pt1 = Point(x,y)
             if mPoly.intersects(pt1):
                 self.eps[x,y] = eps    
@@ -620,8 +630,13 @@ def setPECPolygon(self, mPoly):
     if isinstance(mPoly, Polygon):
         mPoly = MultiPolygon([mPoly])
     (nx, ny) = self._shape
-    for x in range(nx):
-        for y in range(ny):
+    lB, bB, rB, tB = mPoly.bounds
+    lB = max(math.floor(lB),0)
+    bB = max(math.floor(bB),0)
+    rB = min(math.ceil(rB)+1, nx)
+    tB = min(math.ceil(tB)+1, ny)
+    for x in range(lB, rB):
+        for y in range(bB, tB):
             pt1 = Point(x,y)
             if mPoly.intersects(pt1):
                 self.eps[x,y] = PEC_EPS    
@@ -674,8 +689,13 @@ def setVoltagePolygon(self, mPoly, v):
     if isinstance(mPoly, Polygon):
         mPoly = MultiPolygon([mPoly])
     (nx, ny) = self._shape
-    for x in range(nx):
-        for y in range(ny):
+    lB, bB, rB, tB = mPoly.bounds
+    lB = max(math.floor(lB),0)
+    bB = max(math.floor(bB),0)
+    rB = min(math.ceil(rB)+1, nx)
+    tB = min(math.ceil(tB)+1, ny)
+    for x in range(lB, rB):
+        for y in range(bB, tB):
             pt1 = Point(x,y)
             if mPoly.intersects(pt1):
                 self.field[x,y] = v
